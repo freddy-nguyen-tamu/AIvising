@@ -17,29 +17,46 @@ class InMemoryDB:
             return
 
         self.add_document(
-            title="Academic Probation Policy",
+            title="Remote Work Policy",
+            category="Policy",
             content=(
-                "Students on academic probation should meet with an academic advisor "
-                "to create a success plan. Registration may be limited until advising is completed."
+                "Employees may work remotely up to three days per week with manager approval. "
+                "Core collaboration hours are 10 AM to 3 PM local time. Team meetings should "
+                "be attended unless approved otherwise."
             ),
         )
         self.add_document(
-            title="Transfer Credit Procedure",
+            title="New Hire Onboarding Checklist",
+            category="Onboarding",
             content=(
-                "Transfer credits must be reviewed by the department. Students should submit "
-                "official transcripts and any required course syllabi for evaluation."
+                "During week one, new hires should complete account setup, security training, "
+                "tool access requests, and a team introduction. Managers should schedule a 30-60-90 day plan review."
             ),
         )
         self.add_document(
-            title="Graduation Application Timeline",
+            title="Incident Escalation Process",
+            category="Support",
             content=(
-                "Students should apply for graduation before the published university deadline. "
-                "Advisors should verify degree audit completion before final approval."
+                "Critical issues should be escalated immediately to the on-call lead. "
+                "Document impact, affected systems, customer visibility, and mitigation steps in the incident record."
+            ),
+        )
+        self.add_document(
+            title="Design Review Workflow",
+            category="Product",
+            content=(
+                "Design reviews should include the problem statement, target user, current pain points, "
+                "wireframes, accessibility considerations, and implementation constraints before engineering handoff."
             ),
         )
 
-    def add_document(self, title: str, content: str) -> Document:
-        doc = Document(id=self._document_id, title=title, content=content)
+    def add_document(self, title: str, content: str, category: str) -> Document:
+        doc = Document(
+            id=self._document_id,
+            title=title,
+            content=content,
+            category=category,
+        )
         self.documents[self._document_id] = doc
         self._document_id += 1
         return doc
@@ -48,7 +65,7 @@ class InMemoryDB:
         return list(self.documents.values())
 
     def create_conversation(self, role: str, first_user_message: str) -> Conversation:
-        title = first_user_message[:40].strip() or "New conversation"
+        title = first_user_message[:48].strip() or "New conversation"
         convo = Conversation(
             id=self._conversation_id,
             title=title,
@@ -83,7 +100,6 @@ class InMemoryDB:
 
     def list_feedback(self) -> List[FeedbackItem]:
         return list(self.feedback.values())
-
 
 
 db = InMemoryDB()

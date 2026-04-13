@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-type Role = 'advisor' | 'admin'
+type Role = 'member' | 'admin'
 
 type Message = {
   role: 'user' | 'assistant'
@@ -39,17 +39,16 @@ type DocumentItem = {
   id: number
   title: string
   content: string
+  category: string
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
 export default function App() {
-  const [role, setRole] = useState<Role>('advisor')
+  const [role, setRole] = useState<Role>('member')
   const [view, setView] = useState<'chat' | 'admin'>('chat')
-
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null)
-
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -60,18 +59,19 @@ export default function App() {
   const [documents, setDocuments] = useState<DocumentItem[]>([])
 
   const [newDocTitle, setNewDocTitle] = useState('')
+  const [newDocCategory, setNewDocCategory] = useState('General')
   const [newDocContent, setNewDocContent] = useState('')
 
   const selectedConversation = useMemo(
     () => conversations.find((c) => c.id === selectedConversationId) || null,
-    [conversations, selectedConversationId],
+    [conversations, selectedConversationId]
   )
 
   async function fetchConversations() {
     const res = await fetch(`${API_BASE}/conversations`)
     const data = await res.json()
     setConversations(data)
-    if (data.length > 0 && selectedConversationId === null) {
+    if (selectedConversationId === null && data.length > 0) {
       setSelectedConversationId(data[0].id)
     }
   }
@@ -80,7 +80,7 @@ export default function App() {
     const [statsRes, feedbackRes, docsRes] = await Promise.all([
       fetch(`${API_BASE}/admin/stats`),
       fetch(`${API_BASE}/admin/feedback`),
-      fetch(`${API_BASE}/documents`),
+      fetch(`${API_BASE}/documents`)
     ])
 
     setStats(await statsRes.json())
@@ -111,20 +111,18 @@ export default function App() {
         body: JSON.stringify({
           conversation_id: selectedConversationId,
           role,
-          message: input,
-        }),
+          message: input
+        })
       })
 
+      const data = await res.json()
       if (!res.ok) {
-        const data = await res.json()
         throw new Error(data.detail || 'Request failed')
       }
 
-      const data = await res.json()
-
       setLastCitations((prev) => ({
         ...prev,
-        [data.conversation_id]: data.citations,
+        [data.conversation_id]: data.citations
       }))
 
       setInput('')
@@ -150,8 +148,8 @@ export default function App() {
       body: JSON.stringify({
         conversation_id: selectedConversationId,
         message_index: messageIndex,
-        value,
-      }),
+        value
+      })
     })
 
     if (role === 'admin') {
@@ -165,92 +163,133 @@ export default function App() {
     const res = await fetch(`${API_BASE}/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newDocTitle, content: newDocContent }),
+      body: JSON.stringify({
+        title: newDocTitle,
+        category: newDocCategory,
+        content: newDocContent
+      })
     })
 
+    const data = await res.json()
     if (!res.ok) {
-      const data = await res.json()
-      alert(data.detail || 'Failed to ingest document')
+      alert(data.detail || 'Failed to add document')
       return
     }
 
     setNewDocTitle('')
+    setNewDocCategory('General')
     setNewDocContent('')
     await fetchAdminData()
   }
 
   return (
-    <div className="app-shell">
+    <div className="shell">
       <aside className="sidebar">
-        <h2>AI Advising Assistant</h2>
-        <p className="muted">Demo role-based MVP</p>
+        <div>
+          <div className="brand-mark">KA</div>
+          <h1>Knowledge Assistant</h1>
+          <p className="sidebar-copy">Internal knowledge search, chat, and admin workflows.</p>
+        </div>
 
-        <div className="profile-box">
-          <label>Role</label>
+        <div className="sidebar-section">
+          <label className="field-label">Role</label>
           <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            <option value="advisor">Advisor</option>
+            <option value="member">Member</option>
             <option value="admin">Admin</option>
           </select>
+        </div>
 
-          <label>View</label>
-          <select
-            value={view}
-            onChange={(e) => setView(e.target.value as 'chat' | 'admin')}
-          >
-            <option value="chat">Chat</option>
-            {role === 'admin' && <option value="admin">Admin Dashboard</option>}
-          </select>
+        <div className="sidebar-section">
+          <label className="field-label">Workspace</label>
+          <div className="workspace-card">
+            <div className="workspace-title">Operations Knowledge Base</div>
+            <div className="workspace-subtitle">4 starter docs loaded</div>
+          </div>
+        </div>
+
+        <div className="sidebar-section">
+          <button className="ghost-btn" onClick={() => setView('chat')}>
+            Chat
+          </button>
+          {role === 'admin' && (
+            <button className="ghost-btn" onClick={() => setView('admin')}>
+              Admin Dashboard
+            </button>
+          )}
         </div>
       </aside>
 
-      <main className="content">
+      <main className="main">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">Workspace Assistant</div>
+            <h2>{view === 'chat' ? 'Conversations' : 'Admin Dashboard'}</h2>
+          </div>
+          <div className="topbar-actions">
+            <button
+              className="secondary-btn"
+              onClick={() => {
+                setSelectedConversationId(null)
+                setInput('')
+              }}
+            >
+              New chat
+            </button>
+          </div>
+        </header>
+
         {view === 'chat' && (
-          <div className="chat-page">
-            <section className="conversation-list">
-              <div className="conversation-list-header">
-                <h3>Conversations</h3>
-                <button
-                  onClick={() => {
-                    setSelectedConversationId(null)
-                    setInput('')
-                  }}
-                >
-                  New
-                </button>
+          <div className="layout">
+            <section className="panel conversation-panel">
+              <div className="panel-header">
+                <h3>Recent chats</h3>
+                <span className="pill">{conversations.length}</span>
               </div>
 
-              {conversations.length === 0 && (
-                <div className="empty-state">No conversations yet.</div>
-              )}
+              <div className="conversation-list">
+                {conversations.length === 0 && (
+                  <div className="empty-card">No conversations yet.</div>
+                )}
 
-              {conversations.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  className={`conversation-item ${
-                    conversation.id === selectedConversationId ? 'active' : ''
-                  }`}
-                  onClick={() => setSelectedConversationId(conversation.id)}
-                >
-                  <strong>{conversation.title}</strong>
-                  <span className="muted">
-                    {conversation.messages.length} messages
-                  </span>
-                </button>
-              ))}
+                {conversations.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    className={`conversation-row ${
+                      selectedConversationId === conversation.id ? 'active' : ''
+                    }`}
+                    onClick={() => setSelectedConversationId(conversation.id)}
+                  >
+                    <div className="conversation-title">{conversation.title}</div>
+                    <div className="conversation-meta">
+                      {conversation.messages.length} messages
+                    </div>
+                  </button>
+                ))}
+              </div>
             </section>
 
-            <section className="chat-panel">
-              <div className="chat-header">
-                <h3>{selectedConversation ? selectedConversation.title : 'New Chat'}</h3>
-                <p className="muted">
-                  Ask about probation, transfer credit, graduation, or internal policy.
-                </p>
+            <section className="panel chat-panel">
+              <div className="panel-header">
+                <div>
+                  <h3>{selectedConversation ? selectedConversation.title : 'New conversation'}</h3>
+                  <div className="subtle-text">
+                    Ask about onboarding, support process, team workflows, or internal docs.
+                  </div>
+                </div>
               </div>
 
               <div className="messages">
                 {!selectedConversation && (
-                  <div className="empty-state">
-                    Start a new conversation by asking a question below.
+                  <div className="welcome-card">
+                    <h3>Start with a question</h3>
+                    <p>
+                      Try:
+                    </p>
+                    <ul>
+                      <li>How does our incident escalation process work?</li>
+                      <li>What should a new hire complete in week one?</li>
+                      <li>What should be included in a design review?</li>
+                    </ul>
                   </div>
                 )}
 
@@ -260,28 +299,35 @@ export default function App() {
                     index === selectedConversation.messages.length - 1
 
                   return (
-                    <div key={index} className={`message ${message.role}`}>
-                      <div className="message-role">{message.role.toUpperCase()}</div>
-                      <div className="message-content">{message.content}</div>
+                    <div
+                      key={index}
+                      className={`message-bubble ${message.role === 'user' ? 'user' : 'assistant'}`}
+                    >
+                      <div className="message-label">
+                        {message.role === 'user' ? 'You' : 'Assistant'}
+                      </div>
+                      <div className="message-text">{message.content}</div>
 
-                      {isLastAssistant &&
-                        lastCitations[selectedConversation.id] &&
-                        lastCitations[selectedConversation.id].length > 0 && (
-                          <div className="citations">
-                            <strong>Sources</strong>
-                            {lastCitations[selectedConversation.id].map((citation, i) => (
-                              <div className="citation" key={i}>
-                                <div><strong>{citation.title}</strong></div>
-                                <div>{citation.snippet}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                      {isLastAssistant && lastCitations[selectedConversation.id] && (
+                        <div className="source-block">
+                          <div className="source-title">Sources</div>
+                          {lastCitations[selectedConversation.id].map((citation, i) => (
+                            <div key={i} className="source-card">
+                              <strong>{citation.title}</strong>
+                              <div>{citation.snippet}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {message.role === 'assistant' && (
-                        <div className="feedback-row">
-                          <button onClick={() => submitFeedback(index, 1)}>Helpful</button>
-                          <button onClick={() => submitFeedback(index, -1)}>Not Helpful</button>
+                        <div className="feedback-actions">
+                          <button className="mini-btn" onClick={() => submitFeedback(index, 1)}>
+                            Helpful
+                          </button>
+                          <button className="mini-btn" onClick={() => submitFeedback(index, -1)}>
+                            Not helpful
+                          </button>
                         </div>
                       )}
                     </div>
@@ -289,15 +335,15 @@ export default function App() {
                 })}
               </div>
 
-              {error && <div className="error">{error}</div>}
+              {error && <div className="error-banner">{error}</div>}
 
               <div className="composer">
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask an advising question..."
+                  placeholder="Ask a question about internal processes or documents..."
                 />
-                <button onClick={sendMessage} disabled={loading}>
+                <button className="primary-btn" onClick={sendMessage} disabled={loading}>
                   {loading ? 'Sending...' : 'Send'}
                 </button>
               </div>
@@ -306,84 +352,106 @@ export default function App() {
         )}
 
         {view === 'admin' && role === 'admin' && (
-          <div className="admin-page">
-            <h2>Admin Dashboard</h2>
-
-            <div className="stats-grid">
-              <div className="card">
+          <div className="admin-layout">
+            <div className="metric-grid">
+              <div className="metric-card">
                 <span>Conversations</span>
                 <strong>{stats?.total_conversations ?? 0}</strong>
               </div>
-              <div className="card">
+              <div className="metric-card">
                 <span>Messages</span>
                 <strong>{stats?.total_messages ?? 0}</strong>
               </div>
-              <div className="card">
+              <div className="metric-card">
                 <span>Documents</span>
                 <strong>{stats?.total_documents ?? 0}</strong>
               </div>
-              <div className="card">
+              <div className="metric-card">
                 <span>Feedback</span>
                 <strong>{stats?.total_feedback ?? 0}</strong>
               </div>
-              <div className="card">
-                <span>Positive</span>
+              <div className="metric-card">
+                <span>Positive feedback</span>
                 <strong>{stats?.positive_feedback ?? 0}</strong>
               </div>
             </div>
 
             <div className="admin-grid">
-              <div className="panel">
-                <h3>Documents</h3>
-                <div className="list">
+              <section className="panel">
+                <div className="panel-header">
+                  <h3>Knowledge base</h3>
+                </div>
+                <div className="document-grid">
                   {documents.map((doc) => (
-                    <div key={doc.id} className="list-item">
-                      <strong>{doc.title}</strong>
-                      <div className="muted">{doc.content.slice(0, 140)}...</div>
+                    <div key={doc.id} className="doc-card">
+                      <div className="doc-top">
+                        <strong>{doc.title}</strong>
+                        <span className="tag">{doc.category}</span>
+                      </div>
+                      <p>{doc.content}</p>
                     </div>
                   ))}
                 </div>
-              </div>
+              </section>
 
-              <div className="panel">
-                <h3>Ingest Document</h3>
-                <input
-                  value={newDocTitle}
-                  onChange={(e) => setNewDocTitle(e.target.value)}
-                  placeholder="Document title"
-                />
-                <div style={{ height: 10 }} />
-                <textarea
-                  value={newDocContent}
-                  onChange={(e) => setNewDocContent(e.target.value)}
-                  placeholder="Paste document text"
-                  rows={12}
-                />
-                <div style={{ height: 10 }} />
-                <button onClick={addDocument}>Add Document</button>
-              </div>
+              <section className="panel">
+                <div className="panel-header">
+                  <h3>Add document</h3>
+                </div>
+                <div className="form-stack">
+                  <div>
+                    <label className="field-label">Title</label>
+                    <input
+                      value={newDocTitle}
+                      onChange={(e) => setNewDocTitle(e.target.value)}
+                      placeholder="e.g. PTO Request Procedure"
+                    />
+                  </div>
 
-              <div className="panel">
-                <h3>Feedback Log</h3>
-                <div className="list">
+                  <div>
+                    <label className="field-label">Category</label>
+                    <input
+                      value={newDocCategory}
+                      onChange={(e) => setNewDocCategory(e.target.value)}
+                      placeholder="General"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="field-label">Content</label>
+                    <textarea
+                      rows={10}
+                      value={newDocContent}
+                      onChange={(e) => setNewDocContent(e.target.value)}
+                      placeholder="Paste a policy, process, or reference document..."
+                    />
+                  </div>
+
+                  <button className="primary-btn" onClick={addDocument}>
+                    Save document
+                  </button>
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-header">
+                  <h3>Feedback activity</h3>
+                </div>
+                <div className="feedback-list">
+                  {feedback.length === 0 && <div className="empty-card">No feedback yet.</div>}
                   {feedback.map((item) => (
-                    <div key={item.id} className="list-item">
-                      <div><strong>Conversation:</strong> {item.conversation_id}</div>
-                      <div><strong>Message Index:</strong> {item.message_index}</div>
-                      <div><strong>Value:</strong> {item.value === 1 ? 'Helpful' : 'Not Helpful'}</div>
+                    <div key={item.id} className="feedback-item">
+                      <div>
+                        <strong>Conversation #{item.conversation_id}</strong>
+                      </div>
+                      <div>Message index: {item.message_index}</div>
+                      <div>Status: {item.value === 1 ? 'Helpful' : 'Not helpful'}</div>
                     </div>
                   ))}
-                  {feedback.length === 0 && (
-                    <div className="muted">No feedback submitted yet.</div>
-                  )}
                 </div>
-              </div>
+              </section>
             </div>
           </div>
-        )}
-
-        {view === 'admin' && role !== 'admin' && (
-          <div className="empty-state">Switch your role to admin to view the dashboard.</div>
         )}
       </main>
     </div>

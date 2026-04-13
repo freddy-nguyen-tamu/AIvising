@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "AI Academic Policy Assistant API"
+    app_name: str = "Knowledge Assistant API"
     env: str = "dev"
     cors_origins_raw: str = Field(default="http://localhost:5173", alias="CORS_ORIGINS")
     llm_provider: str = "mock"
@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> List[str]:
-        return [origin.strip() for origin in self.cors_origins_raw.split(",") if origin.strip()]
+        return [item.strip() for item in self.cors_origins_raw.split(",") if item.strip()]
 
     class Config:
         env_file = ".env"

@@ -35,7 +35,7 @@ class ChatResponse(BaseModel):
 class FeedbackRequest(BaseModel):
     conversation_id: int
     message_index: int
-    value: int  # 1 or -1
+    value: int
 
 
 class FeedbackItem(BaseModel):
@@ -48,12 +48,14 @@ class FeedbackItem(BaseModel):
 class IngestRequest(BaseModel):
     title: str
     content: str
+    category: str = "General"
 
 
 class Document(BaseModel):
     id: int
     title: str
     content: str
+    category: str
 
 
 class AdminStats(BaseModel):

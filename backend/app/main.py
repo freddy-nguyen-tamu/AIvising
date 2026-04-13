@@ -31,7 +31,7 @@ def startup() -> None:
 
 
 @app.get("/health")
-def health() -> dict:
+def health():
     return {"status": "ok"}
 
 
@@ -87,14 +87,15 @@ def list_documents():
 
 
 @app.post("/api/documents")
-def ingest_document(payload: IngestRequest):
+def add_document(payload: IngestRequest):
     title = payload.title.strip()
     content = payload.content.strip()
+    category = payload.category.strip() or "General"
 
     if not title or not content:
         raise HTTPException(status_code=400, detail="Title and content are required.")
 
-    return db.add_document(title=title, content=content)
+    return db.add_document(title=title, content=content, category=category)
 
 
 @app.get("/api/admin/stats", response_model=AdminStats)
