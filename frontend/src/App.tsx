@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 
 type Role = 'member' | 'admin'
 
@@ -61,6 +61,7 @@ export default function App() {
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('General')
   const [newDocContent, setNewDocContent] = useState('')
+  const [scrollOffset, setScrollOffset] = useState(0)
 
   const selectedConversation = useMemo(
     () => conversations.find((c) => c.id === selectedConversationId) || null,
@@ -97,6 +98,17 @@ export default function App() {
       fetchAdminData()
     }
   }, [role])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollOffset(window.scrollY)
+    }
+
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   async function sendMessage() {
     if (!input.trim()) return
@@ -183,13 +195,34 @@ export default function App() {
   }
 
   return (
-    <div className="shell">
+    <div
+      className="shell"
+      style={
+        {
+          '--scroll-shift': `${scrollOffset * 0.35}px`,
+          '--scroll-shift-soft': `${scrollOffset * 0.18}px`
+        } as CSSProperties
+      }
+    >
+      <div className="background-orbit orbit-one" />
+      <div className="background-orbit orbit-two" />
+      <div className="background-grid" />
+      <div className="ambient ambient-a" />
+      <div className="ambient ambient-b" />
+      <div className="ambient ambient-c" />
+
       <aside className="sidebar">
-        <div>
-          <div className="brand-mark">KA</div>
-          <h1>Knowledge Assistant</h1>
-          <p className="sidebar-copy">Internal knowledge search, chat, and admin workflows.</p>
+        <div className="brand-block">
+          <div className="brand-mark">AI</div>
+          <div>
+            <p className="brand-kicker">Internal AI</p>
+            <h1>AIvising</h1>
+          </div>
         </div>
+
+        <p className="sidebar-copy">
+          Answers grounded in team docs, workflows, policies, and support playbooks.
+        </p>
 
         <div className="sidebar-section">
           <label className="field-label">Role</label>
@@ -203,19 +236,33 @@ export default function App() {
           <label className="field-label">Workspace</label>
           <div className="workspace-card">
             <div className="workspace-title">Operations Knowledge Base</div>
-            <div className="workspace-subtitle">4 starter docs loaded</div>
+            <div className="workspace-subtitle">Starter docs, admin insights, live feedback</div>
           </div>
         </div>
 
-        <div className="sidebar-section">
-          <button className="ghost-btn" onClick={() => setView('chat')}>
-            Chat
+        <div className="sidebar-section nav-stack">
+          <button
+            className={`ghost-btn ${view === 'chat' ? 'active' : ''}`}
+            onClick={() => setView('chat')}
+          >
+            <span>Chat</span>
+            <small>Conversations and retrieval</small>
           </button>
+
           {role === 'admin' && (
-            <button className="ghost-btn" onClick={() => setView('admin')}>
-              Admin Dashboard
+            <button
+              className={`ghost-btn ${view === 'admin' ? 'active' : ''}`}
+              onClick={() => setView('admin')}
+            >
+              <span>Admin Dashboard</span>
+              <small>Documents, feedback, analytics</small>
             </button>
           )}
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="status-dot" />
+          Retrieval ready and demo friendly
         </div>
       </aside>
 
@@ -223,8 +270,14 @@ export default function App() {
         <header className="topbar">
           <div>
             <div className="eyebrow">Workspace Assistant</div>
-            <h2>{view === 'chat' ? 'Conversations' : 'Admin Dashboard'}</h2>
+            <h2>{view === 'chat' ? 'AIvising Chat' : 'AIvising Control Center'}</h2>
+            <p className="topbar-copy">
+              {view === 'chat'
+                ? 'Ask grounded questions across your internal knowledge base.'
+                : 'Monitor content quality, feedback trends, and document coverage.'}
+            </p>
           </div>
+
           <div className="topbar-actions">
             <button
               className="secondary-btn"
@@ -242,13 +295,18 @@ export default function App() {
           <div className="layout">
             <section className="panel conversation-panel">
               <div className="panel-header">
-                <h3>Recent chats</h3>
+                <div>
+                  <h3>Recent chats</h3>
+                  <p className="panel-copy">Your latest internal knowledge sessions.</p>
+                </div>
                 <span className="pill">{conversations.length}</span>
               </div>
 
               <div className="conversation-list">
                 {conversations.length === 0 && (
-                  <div className="empty-card">No conversations yet.</div>
+                  <div className="empty-card">
+                    No conversations yet. Start by asking a policy or process question.
+                  </div>
                 )}
 
                 {conversations.map((conversation) => (
@@ -260,9 +318,7 @@ export default function App() {
                     onClick={() => setSelectedConversationId(conversation.id)}
                   >
                     <div className="conversation-title">{conversation.title}</div>
-                    <div className="conversation-meta">
-                      {conversation.messages.length} messages
-                    </div>
+                    <div className="conversation-meta">{conversation.messages.length} messages</div>
                   </button>
                 ))}
               </div>
@@ -273,23 +329,43 @@ export default function App() {
                 <div>
                   <h3>{selectedConversation ? selectedConversation.title : 'New conversation'}</h3>
                   <div className="subtle-text">
-                    Ask about onboarding, support process, team workflows, or internal docs.
+                    Ask about onboarding, incident response, team workflows, and internal guidance.
                   </div>
                 </div>
               </div>
 
               <div className="messages">
                 {!selectedConversation && (
-                  <div className="welcome-card">
-                    <h3>Start with a question</h3>
-                    <p>
-                      Try:
-                    </p>
-                    <ul>
-                      <li>How does our incident escalation process work?</li>
-                      <li>What should a new hire complete in week one?</li>
-                      <li>What should be included in a design review?</li>
-                    </ul>
+                  <div className="welcome-card hero-card">
+                    <div className="hero-copy">
+                      <span className="hero-pill">AIvising Workspace</span>
+                      <h3>Built for fast, grounded answers.</h3>
+                      <p>
+                        Search policies, onboarding materials, support playbooks, and operating
+                        procedures through a cleaner internal assistant experience.
+                      </p>
+                    </div>
+
+                    <div className="prompt-grid">
+                      <button
+                        className="prompt-card"
+                        onClick={() => setInput('How does our incident escalation process work?')}
+                      >
+                        How does our incident escalation process work?
+                      </button>
+                      <button
+                        className="prompt-card"
+                        onClick={() => setInput('What should a new hire complete in week one?')}
+                      >
+                        What should a new hire complete in week one?
+                      </button>
+                      <button
+                        className="prompt-card"
+                        onClick={() => setInput('What should be included in a design review?')}
+                      >
+                        What should be included in a design review?
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -341,7 +417,7 @@ export default function App() {
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask a question about internal processes or documents..."
+                  placeholder="Ask a question about internal processes, docs, or policies..."
                 />
                 <button className="primary-btn" onClick={sendMessage} disabled={loading}>
                   {loading ? 'Sending...' : 'Send'}
@@ -379,7 +455,10 @@ export default function App() {
             <div className="admin-grid">
               <section className="panel">
                 <div className="panel-header">
-                  <h3>Knowledge base</h3>
+                  <div>
+                    <h3>Knowledge base</h3>
+                    <p className="panel-copy">Current internal documents available to retrieval.</p>
+                  </div>
                 </div>
                 <div className="document-grid">
                   {documents.map((doc) => (
@@ -396,7 +475,10 @@ export default function App() {
 
               <section className="panel">
                 <div className="panel-header">
-                  <h3>Add document</h3>
+                  <div>
+                    <h3>Add document</h3>
+                    <p className="panel-copy">Ingest new policy, SOP, or support reference.</p>
+                  </div>
                 </div>
                 <div className="form-stack">
                   <div>
@@ -435,7 +517,10 @@ export default function App() {
 
               <section className="panel">
                 <div className="panel-header">
-                  <h3>Feedback activity</h3>
+                  <div>
+                    <h3>Feedback activity</h3>
+                    <p className="panel-copy">Recent signal on answer quality.</p>
+                  </div>
                 </div>
                 <div className="feedback-list">
                   {feedback.length === 0 && <div className="empty-card">No feedback yet.</div>}
