@@ -4,13 +4,16 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    app_name: str = "Knowledge Assistant API"
+    app_name: str = "AIvising API"
     env: str = "dev"
     cors_origins_raw: str = Field(default="http://localhost:5173", alias="CORS_ORIGINS")
-    llm_provider: str = "mock"
-    openai_compatible_base_url: str = ""
-    openai_compatible_api_key: str = ""
-    openai_compatible_model: str = ""
+    llm_provider: str = "groq"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.1-8b-instant"
+    retrieval_top_k: int = 4
+    retrieval_max_context_chars: int = 1800
+    conversation_context_messages: int = 6
+    llm_temperature: float = 0.2
 
     @property
     def cors_origins(self) -> List[str]:

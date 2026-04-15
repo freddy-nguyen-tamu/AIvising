@@ -12,7 +12,7 @@ from app.schemas import (
     FeedbackRequest,
     IngestRequest,
 )
-from app.services import generate_answer, retrieve_citations
+from app.services import build_retrieval_query, generate_answer, retrieve_citations
 
 app = FastAPI(title=settings.app_name)
 
@@ -55,8 +55,11 @@ async def chat(payload: ChatRequest):
         conversation_id = payload.conversation_id
         db.add_message(conversation_id, "user", message)
 
-    citations = retrieve_citations(message)
-    answer = await generate_answer(message, citations)
+    conversation = db.get_conversation(conversation_id)
+    retrieval_query = build_retrieval_query(message, conversation.messages)
+
+    citations = retrieve_citations(retrieval_query)
+    answer = await generate_answer(message, citations, conversation.messages)
     db.add_message(conversation_id, "assistant", answer)
 
     return ChatResponse(

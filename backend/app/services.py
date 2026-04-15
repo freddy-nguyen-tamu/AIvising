@@ -1,29 +1,78 @@
 from typing import List, Tuple
+import asyncio
+import re
+
 import httpx
 
 from app.config import settings
 from app.db import db
-from app.schemas import Citation, Document
+from app.schemas import Citation, Document, Message
+
+
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
 def tokenize(text: str) -> List[str]:
     return [token.strip(".,!?():;").lower() for token in text.split() if token.strip()]
 
 
-def score_documents(query: str, documents: List[Document]) -> List[Tuple[int, Document]]:
+def split_into_chunks(document: Document, max_chars: int = 320) -> List[str]:
+    sentences = [
+        sentence.strip()
+        for sentence in document.content.replace("\n", " ").split(". ")
+        if sentence.strip()
+    ]
+
+    if not sentences:
+        return [document.content[:max_chars]]
+
+    chunks: List[str] = []
+    current = ""
+
+    for sentence in sentences:
+        candidate = f"{current}. {sentence}" if current else sentence
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+
+        if current:
+            chunks.append(current.strip())
+        current = sentence
+
+    if current:
+        chunks.append(current.strip())
+
+    return chunks or [document.content[:max_chars]]
+
+
+def score_documents(query: str, documents: List[Document]) -> List[Tuple[int, Document, str]]:
     query_terms = tokenize(query)
-    scored: List[Tuple[int, Document]] = []
+    scored: List[Tuple[int, Document, str]] = []
 
     for doc in documents:
-        haystack = tokenize(f"{doc.title} {doc.category} {doc.content}")
-        score = 0
-        for term in query_terms:
-            score += haystack.count(term)
-        if score > 0:
-            scored.append((score, doc))
+        for chunk in split_into_chunks(doc):
+            haystack = tokenize(f"{doc.title} {doc.category} {chunk}")
+            score = 0
+            for term in query_terms:
+                score += haystack.count(term)
+            if score > 0:
+                if query.lower() in chunk.lower():
+                    score += 2
+                scored.append((score, doc, chunk))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    return scored[:4]
+    return scored[: settings.retrieval_top_k]
+
+
+def build_retrieval_query(message: str, conversation_messages: List[Message] | None = None) -> str:
+    recent_messages = conversation_messages or []
+    recent_user_turns = [
+        item.content.strip()
+        for item in recent_messages[-settings.conversation_context_messages :]
+        if item.role == "user" and item.content.strip()
+    ]
+    combined = " ".join(recent_user_turns[-2:] + [message.strip()])
+    return combined.strip() or message.strip()
 
 
 def retrieve_citations(query: str) -> List[Citation]:
@@ -39,22 +88,27 @@ def retrieve_citations(query: str) -> List[Citation]:
         ]
 
     citations: List[Citation] = []
-    for _, doc in scored:
+    for _, doc, chunk in scored:
         citations.append(
             Citation(
                 title=f"{doc.title} ({doc.category})",
-                snippet=doc.content[:220],
+                snippet=chunk[:220],
                 source_type="document",
             )
         )
     return citations
 
 
-def build_mock_answer(query: str, citations: List[Citation]) -> str:
+def build_mock_answer(query: str, citations: List[Citation], conversation_messages: List[Message]) -> str:
     summary_lines = "\n".join([f"- {c.title}: {c.snippet}" for c in citations])
+    recent_context = "\n".join(
+        f"{message.role.title()}: {message.content}"
+        for message in conversation_messages[-settings.conversation_context_messages :]
+    )
 
     return (
         f"I found relevant internal guidance for your question.\n\n"
+        f"Recent conversation:\n{recent_context or 'No prior context'}\n\n"
         f"Question:\n{query}\n\n"
         f"Relevant sources:\n{summary_lines}\n\n"
         f"Recommended response:\n"
@@ -63,50 +117,140 @@ def build_mock_answer(query: str, citations: List[Citation]) -> str:
     )
 
 
-async def generate_openai_compatible_answer(query: str, citations: List[Citation]) -> str:
-    if not settings.openai_compatible_base_url or not settings.openai_compatible_model:
-        return "The LLM provider is configured as openai_compatible, but the base URL or model is missing."
-
-    evidence = "\n".join([f"- {c.title}: {c.snippet}" for c in citations])
-
-    payload = {
-        "model": settings.openai_compatible_model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are an internal knowledge assistant. "
-                    "Use only the provided evidence. "
-                    "If evidence is weak or incomplete, say so clearly."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Question: {query}\n\nEvidence:\n{evidence}",
-            },
-        ],
-        "temperature": 0.2,
-    }
-
-    headers = {"Content-Type": "application/json"}
-    if settings.openai_compatible_api_key:
-        headers["Authorization"] = f"Bearer {settings.openai_compatible_api_key}"
+def parse_retry_after_seconds(response: httpx.Response) -> float:
+    retry_after = response.headers.get("retry-after")
+    if retry_after:
+        try:
+            return float(retry_after)
+        except ValueError:
+            pass
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{settings.openai_compatible_base_url.rstrip('/')}/chat/completions",
-                json=payload,
-                headers=headers,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-    except Exception as exc:
-        return f"Failed to call the LLM provider: {exc}"
+        payload = response.json()
+        message = payload.get("error", {}).get("message", "")
+        match = re.search(r"try again in\s+([0-9]*\.?[0-9]+)s", message, re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+    except Exception:
+        pass
+
+    return 2.0
 
 
-async def generate_answer(query: str, citations: List[Citation]) -> str:
-    if settings.llm_provider == "openai_compatible":
-        return await generate_openai_compatible_answer(query, citations)
-    return build_mock_answer(query, citations)
+def build_evidence_block(citations: List[Citation]) -> str:
+    evidence_lines: List[str] = []
+    current_chars = 0
+
+    for index, citation in enumerate(citations, start=1):
+        line = f"[{index}] {citation.title}: {citation.snippet}"
+        if current_chars + len(line) > settings.retrieval_max_context_chars:
+            break
+        evidence_lines.append(line)
+        current_chars += len(line)
+
+    return "\n".join(evidence_lines)
+
+
+def build_chat_messages(query: str, citations: List[Citation], conversation_messages: List[Message]) -> List[dict]:
+    evidence = build_evidence_block(citations)
+    recent_turns = conversation_messages[-settings.conversation_context_messages :]
+    history_lines = [
+        f"{message.role.title()}: {message.content}"
+        for message in recent_turns
+    ]
+    history_text = "\n".join(history_lines) if history_lines else "No prior conversation."
+
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are AIvising, an internal knowledge assistant for workplace policy and process questions. "
+                "Answer clearly and professionally using only the retrieved evidence when possible. "
+                "If the evidence is incomplete, say that directly and recommend a human follow-up. "
+                "Prefer concise, actionable responses with 2-4 short paragraphs or bullets when useful. "
+                "Do not claim to have searched documents outside the provided evidence."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Recent conversation:\n{history_text}\n\n"
+                f"Latest user question:\n{query}\n\n"
+                f"Retrieved evidence:\n{evidence or 'No strong evidence found.'}\n\n"
+                "Write a helpful answer grounded in the evidence. "
+                "If there is uncertainty, say what is missing."
+            ),
+        },
+    ]
+
+
+async def generate_groq_answer(
+    query: str,
+    citations: List[Citation],
+    conversation_messages: List[Message],
+) -> str:
+    if not settings.groq_api_key:
+        return "The LLM provider is configured as groq, but GROQ_API_KEY is missing."
+
+    payload = {
+        "model": settings.groq_model,
+        "messages": build_chat_messages(query, citations, conversation_messages),
+        "temperature": settings.llm_temperature,
+        "max_tokens": 500,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {settings.groq_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    backoff = 1.0
+    max_retries = 8
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = await client.post(
+                    GROQ_API_URL,
+                    json=payload,
+                    headers=headers,
+                )
+            except httpx.RequestError as exc:
+                if attempt == max_retries:
+                    return f"Failed to call the Groq API: {exc}"
+                await sleep_with_retry(backoff + 0.25)
+                backoff = min(backoff * 1.6, 20.0)
+                continue
+
+            if response.status_code == 200:
+                data = response.json()
+                return data["choices"][0]["message"]["content"]
+
+            if response.status_code == 429 and attempt < max_retries:
+                wait_seconds = max(parse_retry_after_seconds(response), backoff) + 0.25
+                await sleep_with_retry(wait_seconds)
+                backoff = min(backoff * 1.6, 20.0)
+                continue
+
+            if response.status_code >= 500 and attempt < max_retries:
+                await sleep_with_retry(backoff + 0.25)
+                backoff = min(backoff * 1.6, 20.0)
+                continue
+
+            return f"Groq API error: {response.status_code} {response.text}"
+
+    return "Groq API error: too many retries."
+
+
+async def sleep_with_retry(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+async def generate_answer(
+    query: str,
+    citations: List[Citation],
+    conversation_messages: List[Message],
+) -> str:
+    if settings.llm_provider == "groq":
+        return await generate_groq_answer(query, citations, conversation_messages)
+    return build_mock_answer(query, citations, conversation_messages)
