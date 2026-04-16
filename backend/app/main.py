@@ -91,6 +91,9 @@ def list_documents():
 
 @app.post("/api/documents")
 def add_document(payload: IngestRequest):
+    if payload.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can add documents.")
+
     title = payload.title.strip()
     content = payload.content.strip()
     category = payload.category.strip() or "General"

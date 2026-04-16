@@ -61,6 +61,7 @@ export default function App() {
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('General')
   const [newDocContent, setNewDocContent] = useState('')
+  const [docStatus, setDocStatus] = useState('')
   const [scrollOffset, setScrollOffset] = useState(0)
 
   const selectedConversation = useMemo(
@@ -170,12 +171,18 @@ export default function App() {
   }
 
   async function addDocument() {
+    if (role !== 'admin') {
+      setDocStatus('Only admins can add documents.')
+      return
+    }
+
     if (!newDocTitle.trim() || !newDocContent.trim()) return
 
     const res = await fetch(`${API_BASE}/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        role,
         title: newDocTitle,
         category: newDocCategory,
         content: newDocContent
@@ -184,13 +191,14 @@ export default function App() {
 
     const data = await res.json()
     if (!res.ok) {
-      alert(data.detail || 'Failed to add document')
+      setDocStatus(data.detail || 'Failed to add document')
       return
     }
 
     setNewDocTitle('')
     setNewDocCategory('General')
     setNewDocContent('')
+    setDocStatus('Document added to the knowledge base.')
     await fetchAdminData()
   }
 
@@ -512,6 +520,8 @@ export default function App() {
                   <button className="primary-btn" onClick={addDocument}>
                     Save document
                   </button>
+
+                  {docStatus && <div className="subtle-text">{docStatus}</div>}
                 </div>
               </section>
 

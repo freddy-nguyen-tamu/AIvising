@@ -46,6 +46,7 @@ class FeedbackItem(BaseModel):
 
 
 class IngestRequest(BaseModel):
+    role: str
     title: str
     content: str
     category: str = "General"
