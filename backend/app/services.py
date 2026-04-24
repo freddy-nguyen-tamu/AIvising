@@ -6,6 +6,7 @@ import httpx
 
 from app.config import settings
 from app.db import db
+from app.local_llm import generate_local_adapter_answer
 from app.schemas import Citation, Document, Message
 
 
@@ -251,6 +252,12 @@ async def generate_answer(
     citations: List[Citation],
     conversation_messages: List[Message],
 ) -> str:
+    if settings.llm_provider == "local_adapter":
+        try:
+            messages = build_chat_messages(query, citations, conversation_messages)
+            return generate_local_adapter_answer(messages)
+        except Exception as exc:
+            return f"Local adapter inference error: {exc}"
     if settings.llm_provider == "groq":
         return await generate_groq_answer(query, citations, conversation_messages)
     return build_mock_answer(query, citations, conversation_messages)
