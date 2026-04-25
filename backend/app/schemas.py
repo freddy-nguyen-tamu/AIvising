@@ -65,3 +65,9 @@ class AdminStats(BaseModel):
     total_documents: int
     total_feedback: int
     positive_feedback: int
+
+
+class ProviderStatus(BaseModel):
+    provider: str
+    model: str
+    configured: bool

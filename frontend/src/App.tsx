@@ -42,6 +42,12 @@ type DocumentItem = {
   category: string
 }
 
+type ProviderStatus = {
+  provider: string
+  model: string
+  configured: boolean
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
 export default function App() {
@@ -57,6 +63,7 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [documents, setDocuments] = useState<DocumentItem[]>([])
+  const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
 
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('General')
@@ -79,15 +86,17 @@ export default function App() {
   }
 
   async function fetchAdminData() {
-    const [statsRes, feedbackRes, docsRes] = await Promise.all([
+    const [statsRes, feedbackRes, docsRes, providerRes] = await Promise.all([
       fetch(`${API_BASE}/admin/stats`),
       fetch(`${API_BASE}/admin/feedback`),
-      fetch(`${API_BASE}/documents`)
+      fetch(`${API_BASE}/documents`),
+      fetch(`${API_BASE}/admin/provider-status`)
     ])
 
     setStats(await statsRes.json())
     setFeedback(await feedbackRes.json())
     setDocuments(await docsRes.json())
+    setProviderStatus(await providerRes.json())
   }
 
   useEffect(() => {
@@ -461,6 +470,26 @@ export default function App() {
             </div>
 
             <div className="admin-grid">
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h3>Provider status</h3>
+                    <p className="panel-copy">Current inference provider and model configuration.</p>
+                  </div>
+                </div>
+                <div className="form-stack">
+                  <div className="doc-card">
+                    <div className="doc-top">
+                      <strong>{providerStatus?.provider ?? 'unknown'}</strong>
+                      <span className="tag">
+                        {providerStatus?.configured ? 'Configured' : 'Not configured'}
+                      </span>
+                    </div>
+                    <p>{providerStatus?.model ?? 'No model loaded'}</p>
+                  </div>
+                </div>
+              </section>
+
               <section className="panel">
                 <div className="panel-header">
                   <div>

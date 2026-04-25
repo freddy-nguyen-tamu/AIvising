@@ -11,6 +11,7 @@ from app.schemas import (
     FeedbackItem,
     FeedbackRequest,
     IngestRequest,
+    ProviderStatus,
 )
 from app.services import build_retrieval_query, generate_answer, retrieve_citations
 
@@ -125,3 +126,23 @@ def admin_stats():
 @app.get("/api/admin/feedback", response_model=list[FeedbackItem])
 def admin_feedback():
     return db.list_feedback()
+
+
+@app.get("/api/admin/provider-status", response_model=ProviderStatus)
+def provider_status():
+    provider = settings.llm_provider
+    model = "mock-template"
+    configured = True
+
+    if provider == "groq":
+        model = settings.groq_model
+        configured = bool(settings.groq_api_key)
+    elif provider == "local_adapter":
+        model = f"{settings.local_base_model} + {settings.local_adapter_path}"
+        configured = bool(settings.local_base_model and settings.local_adapter_path)
+
+    return ProviderStatus(
+        provider=provider,
+        model=model,
+        configured=configured,
+    )
