@@ -55,6 +55,7 @@ export default function App() {
   const [view, setView] = useState<'chat' | 'admin'>('chat')
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null)
+  const [conversationSearch, setConversationSearch] = useState('')
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -75,6 +76,20 @@ export default function App() {
     () => conversations.find((c) => c.id === selectedConversationId) || null,
     [conversations, selectedConversationId]
   )
+
+  const filteredConversations = useMemo(() => {
+    const query = conversationSearch.trim().toLowerCase()
+    if (!query) {
+      return conversations
+    }
+
+    return conversations.filter((conversation) => {
+      const haystack = `${conversation.title} ${conversation.messages
+        .map((message) => message.content)
+        .join(' ')}`.toLowerCase()
+      return haystack.includes(query)
+    })
+  }, [conversationSearch, conversations])
 
   async function fetchConversations() {
     const res = await fetch(`${API_BASE}/conversations`)
@@ -211,6 +226,35 @@ export default function App() {
     await fetchAdminData()
   }
 
+  async function deleteConversation(conversationId: number) {
+    const confirmed = window.confirm('Delete this conversation permanently?')
+    if (!confirmed) return
+
+    try {
+      const res = await fetch(`${API_BASE}/conversations/${conversationId}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to delete conversation')
+      }
+
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null)
+      }
+
+      setLastCitations((prev) => {
+        const next = { ...prev }
+        delete next[conversationId]
+        return next
+      })
+
+      await fetchConversations()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+    }
+  }
+
   return (
     <div
       className="shell"
@@ -320,23 +364,46 @@ export default function App() {
               </div>
 
               <div className="conversation-list">
+                <input
+                  value={conversationSearch}
+                  onChange={(e) => setConversationSearch(e.target.value)}
+                  placeholder="Search conversations..."
+                  className="conversation-search"
+                />
+
                 {conversations.length === 0 && (
                   <div className="empty-card">
                     No conversations yet. Start by asking a policy or process question.
                   </div>
                 )}
 
-                {conversations.map((conversation) => (
-                  <button
+                {conversations.length > 0 && filteredConversations.length === 0 && (
+                  <div className="empty-card">No conversations match that search.</div>
+                )}
+
+                {filteredConversations.map((conversation) => (
+                  <div
                     key={conversation.id}
                     className={`conversation-row ${
                       selectedConversationId === conversation.id ? 'active' : ''
                     }`}
-                    onClick={() => setSelectedConversationId(conversation.id)}
                   >
-                    <div className="conversation-title">{conversation.title}</div>
-                    <div className="conversation-meta">{conversation.messages.length} messages</div>
-                  </button>
+                    <button
+                      className="conversation-select"
+                      onClick={() => setSelectedConversationId(conversation.id)}
+                    >
+                      <div className="conversation-title">{conversation.title}</div>
+                      <div className="conversation-meta">{conversation.messages.length} messages</div>
+                    </button>
+                    <button
+                      className="conversation-delete"
+                      onClick={() => deleteConversation(conversation.id)}
+                      aria-label={`Delete conversation ${conversation.title}`}
+                      title="Delete conversation"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 ))}
               </div>
             </section>

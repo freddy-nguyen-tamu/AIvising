@@ -82,6 +82,18 @@ class InMemoryDB:
     def list_conversations(self) -> List[Conversation]:
         return list(self.conversations.values())
 
+    def delete_conversation(self, conversation_id: int) -> None:
+        if conversation_id in self.conversations:
+            del self.conversations[conversation_id]
+
+        feedback_to_remove = [
+            item_id
+            for item_id, item in self.feedback.items()
+            if item.conversation_id == conversation_id
+        ]
+        for item_id in feedback_to_remove:
+            del self.feedback[item_id]
+
     def add_message(self, conversation_id: int, role: str, content: str) -> None:
         self.conversations[conversation_id].messages.append(
             Message(role=role, content=content)

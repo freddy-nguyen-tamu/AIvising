@@ -460,13 +460,19 @@ select:focus {
   gap: 10px;
 }
 
+.conversation-search {
+  margin-bottom: 6px;
+}
+
 .conversation-row {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid transparent;
   border-radius: 18px;
   padding: 14px;
-  text-align: left;
   color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .conversation-row:hover {
@@ -483,6 +489,28 @@ select:focus {
 .conversation-title {
   font-weight: 600;
   margin-bottom: 6px;
+}
+
+.conversation-select {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.conversation-delete {
+  background: rgba(255, 127, 150, 0.12);
+  color: #ffb4c1;
+  border: 1px solid rgba(255, 127, 150, 0.24);
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.conversation-delete:hover {
+  background: rgba(255, 127, 150, 0.18);
 }
 
 .conversation-meta,

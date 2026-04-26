@@ -41,6 +41,15 @@ def list_conversations():
     return db.list_conversations()
 
 
+@app.delete("/api/conversations/{conversation_id}")
+def delete_conversation(conversation_id: int):
+    if conversation_id not in db.conversations:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+
+    db.delete_conversation(conversation_id)
+    return {"status": "deleted", "conversation_id": conversation_id}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(payload: ChatRequest):
     message = payload.message.strip()
