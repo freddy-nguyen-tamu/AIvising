@@ -71,3 +71,14 @@ class ProviderStatus(BaseModel):
     provider: str
     model: str
     configured: bool
+
+
+class RetrievalTrace(BaseModel):
+    id: int
+    conversation_id: int
+    user_message: str
+    retrieval_query: str
+    provider: str
+    model: str
+    answer_preview: str
+    citations: List[Citation]

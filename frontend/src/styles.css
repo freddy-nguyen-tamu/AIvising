@@ -739,25 +739,29 @@ select:focus {
 
 .document-grid,
 .feedback-list,
-.form-stack {
+.form-stack,
+.trace-list {
   padding: 20px;
 }
 
 .document-grid,
-.feedback-list {
+.feedback-list,
+.trace-list {
   display: grid;
   gap: 12px;
 }
 
 .doc-card,
-.feedback-item {
+.feedback-item,
+.trace-card {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 18px;
   padding: 16px;
 }
 
 .doc-card p,
-.feedback-item {
+.feedback-item,
+.trace-card p {
   color: var(--muted);
   line-height: 1.6;
 }
@@ -781,6 +785,38 @@ select:focus {
 .form-stack {
   display: grid;
   gap: 14px;
+}
+
+.trace-list {
+  max-height: 78vh;
+  overflow: auto;
+}
+
+.trace-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+
+.trace-block {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.trace-label {
+  color: #f5a2ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trace-citations {
+  display: grid;
+  gap: 10px;
 }
 
 @media (max-width: 1280px) {

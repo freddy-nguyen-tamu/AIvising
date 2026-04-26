@@ -12,8 +12,9 @@ from app.schemas import (
     FeedbackRequest,
     IngestRequest,
     ProviderStatus,
+    RetrievalTrace,
 )
-from app.services import build_retrieval_query, generate_answer, retrieve_citations
+from app.services import build_retrieval_query, generate_answer, get_provider_snapshot, retrieve_citations
 
 app = FastAPI(title=settings.app_name)
 
@@ -71,6 +72,16 @@ async def chat(payload: ChatRequest):
     citations = retrieve_citations(retrieval_query)
     answer = await generate_answer(message, citations, conversation.messages)
     db.add_message(conversation_id, "assistant", answer)
+    provider, model, _ = get_provider_snapshot()
+    db.add_retrieval_trace(
+        conversation_id=conversation_id,
+        user_message=message,
+        retrieval_query=retrieval_query,
+        provider=provider,
+        model=model,
+        answer_preview=answer[:280],
+        citations=citations,
+    )
 
     return ChatResponse(
         conversation_id=conversation_id,
@@ -139,19 +150,15 @@ def admin_feedback():
 
 @app.get("/api/admin/provider-status", response_model=ProviderStatus)
 def provider_status():
-    provider = settings.llm_provider
-    model = "mock-template"
-    configured = True
-
-    if provider == "groq":
-        model = settings.groq_model
-        configured = bool(settings.groq_api_key)
-    elif provider == "local_adapter":
-        model = f"{settings.local_base_model} + {settings.local_adapter_path}"
-        configured = bool(settings.local_base_model and settings.local_adapter_path)
+    provider, model, configured = get_provider_snapshot()
 
     return ProviderStatus(
         provider=provider,
         model=model,
         configured=configured,
     )
+
+
+@app.get("/api/admin/retrieval-traces", response_model=list[RetrievalTrace])
+def retrieval_traces():
+    return db.list_retrieval_traces()

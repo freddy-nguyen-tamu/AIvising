@@ -48,6 +48,17 @@ type ProviderStatus = {
   configured: boolean
 }
 
+type RetrievalTrace = {
+  id: number
+  conversation_id: number
+  user_message: string
+  retrieval_query: string
+  provider: string
+  model: string
+  answer_preview: string
+  citations: Citation[]
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
 
 export default function App() {
@@ -65,6 +76,7 @@ export default function App() {
   const [feedback, setFeedback] = useState<FeedbackItem[]>([])
   const [documents, setDocuments] = useState<DocumentItem[]>([])
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
+  const [retrievalTraces, setRetrievalTraces] = useState<RetrievalTrace[]>([])
 
   const [newDocTitle, setNewDocTitle] = useState('')
   const [newDocCategory, setNewDocCategory] = useState('General')
@@ -101,17 +113,19 @@ export default function App() {
   }
 
   async function fetchAdminData() {
-    const [statsRes, feedbackRes, docsRes, providerRes] = await Promise.all([
+    const [statsRes, feedbackRes, docsRes, providerRes, tracesRes] = await Promise.all([
       fetch(`${API_BASE}/admin/stats`),
       fetch(`${API_BASE}/admin/feedback`),
       fetch(`${API_BASE}/documents`),
-      fetch(`${API_BASE}/admin/provider-status`)
+      fetch(`${API_BASE}/admin/provider-status`),
+      fetch(`${API_BASE}/admin/retrieval-traces`)
     ])
 
     setStats(await statsRes.json())
     setFeedback(await feedbackRes.json())
     setDocuments(await docsRes.json())
     setProviderStatus(await providerRes.json())
+    setRetrievalTraces(await tracesRes.json())
   }
 
   useEffect(() => {
@@ -554,6 +568,57 @@ export default function App() {
                     </div>
                     <p>{providerStatus?.model ?? 'No model loaded'}</p>
                   </div>
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h3>Retrieval inspector</h3>
+                    <p className="panel-copy">
+                      Review the exact retrieval query, grounding snippets, and answer preview for recent runs.
+                    </p>
+                  </div>
+                </div>
+                <div className="trace-list">
+                  {retrievalTraces.length === 0 && (
+                    <div className="empty-card">No retrieval traces yet. Ask a chat question to populate this view.</div>
+                  )}
+                  {retrievalTraces.map((trace) => (
+                    <div key={trace.id} className="trace-card">
+                      <div className="trace-header">
+                        <strong>Conversation #{trace.conversation_id}</strong>
+                        <span className="tag">{trace.provider}</span>
+                      </div>
+                      <div className="trace-block">
+                        <span className="trace-label">User message</span>
+                        <p>{trace.user_message}</p>
+                      </div>
+                      <div className="trace-block">
+                        <span className="trace-label">Retrieval query</span>
+                        <p>{trace.retrieval_query}</p>
+                      </div>
+                      <div className="trace-block">
+                        <span className="trace-label">Model</span>
+                        <p>{trace.model}</p>
+                      </div>
+                      <div className="trace-block">
+                        <span className="trace-label">Answer preview</span>
+                        <p>{trace.answer_preview}</p>
+                      </div>
+                      <div className="trace-block">
+                        <span className="trace-label">Grounding snippets</span>
+                        <div className="trace-citations">
+                          {trace.citations.map((citation, index) => (
+                            <div key={`${trace.id}-${index}`} className="source-card">
+                              <strong>{citation.title}</strong>
+                              <div>{citation.snippet}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </section>
 

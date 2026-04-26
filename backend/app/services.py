@@ -107,6 +107,21 @@ def build_mock_answer(query: str, citations: List[Citation], conversation_messag
         for message in conversation_messages[-settings.conversation_context_messages :]
     )
 
+
+def get_provider_snapshot() -> tuple[str, str, bool]:
+    provider = settings.llm_provider
+    model = "mock-template"
+    configured = True
+
+    if provider == "groq":
+        model = settings.groq_model
+        configured = bool(settings.groq_api_key)
+    elif provider == "local_adapter":
+        model = f"{settings.local_base_model} + {settings.local_adapter_path}"
+        configured = bool(settings.local_base_model and settings.local_adapter_path)
+
+    return provider, model, configured
+
     return (
         f"I found relevant internal guidance for your question.\n\n"
         f"Recent conversation:\n{recent_context or 'No prior context'}\n\n"

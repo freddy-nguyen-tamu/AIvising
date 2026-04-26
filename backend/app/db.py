@@ -1,5 +1,5 @@
 from typing import Dict, List
-from app.schemas import Conversation, Document, FeedbackItem, Message
+from app.schemas import Citation, Conversation, Document, FeedbackItem, Message, RetrievalTrace
 
 
 class InMemoryDB:
@@ -7,10 +7,12 @@ class InMemoryDB:
         self.conversations: Dict[int, Conversation] = {}
         self.documents: Dict[int, Document] = {}
         self.feedback: Dict[int, FeedbackItem] = {}
+        self.retrieval_traces: Dict[int, RetrievalTrace] = {}
 
         self._conversation_id = 1
         self._document_id = 1
         self._feedback_id = 1
+        self._retrieval_trace_id = 1
 
     def seed(self) -> None:
         if self.documents:
@@ -94,6 +96,14 @@ class InMemoryDB:
         for item_id in feedback_to_remove:
             del self.feedback[item_id]
 
+        traces_to_remove = [
+            item_id
+            for item_id, item in self.retrieval_traces.items()
+            if item.conversation_id == conversation_id
+        ]
+        for item_id in traces_to_remove:
+            del self.retrieval_traces[item_id]
+
     def add_message(self, conversation_id: int, role: str, content: str) -> None:
         self.conversations[conversation_id].messages.append(
             Message(role=role, content=content)
@@ -112,6 +122,34 @@ class InMemoryDB:
 
     def list_feedback(self) -> List[FeedbackItem]:
         return list(self.feedback.values())
+
+    def add_retrieval_trace(
+        self,
+        conversation_id: int,
+        user_message: str,
+        retrieval_query: str,
+        provider: str,
+        model: str,
+        answer_preview: str,
+        citations: List[Citation],
+    ) -> RetrievalTrace:
+        item = RetrievalTrace(
+            id=self._retrieval_trace_id,
+            conversation_id=conversation_id,
+            user_message=user_message,
+            retrieval_query=retrieval_query,
+            provider=provider,
+            model=model,
+            answer_preview=answer_preview,
+            citations=citations,
+        )
+        self.retrieval_traces[self._retrieval_trace_id] = item
+        self._retrieval_trace_id += 1
+        return item
+
+    def list_retrieval_traces(self, limit: int = 12) -> List[RetrievalTrace]:
+        traces = sorted(self.retrieval_traces.values(), key=lambda item: item.id, reverse=True)
+        return traces[:limit]
 
 
 db = InMemoryDB()
